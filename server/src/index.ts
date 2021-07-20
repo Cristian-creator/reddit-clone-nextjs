@@ -1,29 +1,54 @@
-import 'reflect-metadata';
-import { MikroORM } from "@mikro-orm/core";  // CTRL + SPACE for autocomplete
-import { __prod__ } from "./constants";
-// import { Post } from "./entities/Post";
-import microConfig from './mikro-orm.config';
+require('dotenv').config();
+
+import { ApolloServer } from 'apollo-server-express';   // CTRL + SPACE for autocomplete
+import connectRedis from 'connect-redis';
+import cors from 'cors';
 import express from 'express';
-import { ApolloServer } from 'apollo-server-express';
+import session from 'express-session';
+
+//     Redis & sessions
+import 'reflect-metadata';
+import Redis from 'ioredis';
 import { buildSchema } from 'type-graphql';
+import { COOKIE_NAME, __prod__ } from "./constants";
 import { HelloResolver } from "./resolvers/hello";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from './resolvers/user';
 import { MyContext } from './types';
-//     Redis & sessions
-import redis from 'redis';
-import session from 'express-session';
-import connectRedis from 'connect-redis';
-import cors from 'cors';
+
+// typeorm 
+import { createConnection } from 'typeorm';
+import { Post } from "./entities/Post";
+import { User } from "./entities/User";
+import path from 'path';
+import { Updoot } from './entities/Updoot';
+import { createUserLoader } from './utils/createUserLoader';
+import { createUpdootLoader } from './utils/createUpdootLoader';
 
 const main = async () => {
-    const orm = await MikroORM.init(microConfig);   // connect to DB
-    orm.getMigrator().up();                         // run migrations
+    // -----  create connection pool -----
+    const conn = await createConnection({
+        type: process.env.DB_TYPE as any,
+        database: process.env.DB_NAME,
+        username: process.env.DB_USERNAME,
+        password: process.env.DB_PASS, 
+        logging: true,
+        synchronize: true,      // create tables automatically without run migration
+        // migrations: [__dirname, "./migrations/*"],
+        migrations: [path.join(__dirname, "./migrations/*")],
+        entities: [Post, User, Updoot]
+    });
+
+    // -----  run migrations  -----
+    // await conn.runMigrations();
+
+    // -----  clear posts db  -----
+    // await Post.delete({});
 
     const app = express();
 
     const RedisStore = connectRedis(session);
-    const redisClient = redis.createClient();
+    const redis = new Redis();
 
     const corsOptions = {
         credentials: true,
@@ -34,9 +59,9 @@ const main = async () => {
 
     app.use(
         session({
-            name: 'qid',                              // random name
+            name: COOKIE_NAME,                              // random name
             store: new RedisStore({ 
-                client: redisClient,
+                client: redis,
                 disableTouch: true
             }),
             cookie: {
@@ -44,36 +69,30 @@ const main = async () => {
                 httpOnly: true,
                 sameSite: 'lax',                      // csrf 
                 secure: __prod__                      // cookie only works in https
-            },
+            }, 
             saveUninitialized: false,
-            secret: 'lsdaksdjasdp1p23',                // MOVE TO ENV
+            secret: process.env.SESSION_SECRET as string,                // MOVE TO ENV
             resave: false,
         })
     );
-    
+
     const apolloServer = new ApolloServer({
-        schema: await buildSchema({                // await because it returns a promise
+        schema: await buildSchema({                //  await because it returns a promise
             resolvers: [HelloResolver, PostResolver, UserResolver],
             validate: false
         }),
-        context: ({ req, res }): MyContext => ({ em: orm.em, req, res })            // return object for context        
+        context: ({ req, res }): MyContext => ({ req, res, redis, userLoader: createUserLoader(), updootLoader: createUpdootLoader() })            // return object for context        
     });
 
     apolloServer.applyMiddleware({ app, cors: false });
 
-    app.listen(4000, () => {
-        console.log("server started on localhost:4000");
-    });
-
-    //  ----------    ADD  POST  -------------
-    // const post = orm.em.create(Post, { title: 'my first post' });
-    // // const post = new Post('my first post');  equivalent to the above line
-    // await orm.em.persistAndFlush(post);
-    
-    // -----------   FIND POSTS  ------------
-    // const posts = await orm.em.find(Post, {});
-    // console.log(posts);
-
+    try {
+        app.listen(4000, () => {
+            console.log("server started on localhost:4000");
+        });
+    } catch (error) {
+        console.log("error");
+    }
 };
 
 main().catch((err) => {

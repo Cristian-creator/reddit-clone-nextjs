@@ -1,21 +1,13 @@
-import React, { ElementType } from 'react';
-import Head from 'next/head';
-import { ThemeProvider } from '@material-ui/core/styles';
 import CssBaseline from '@material-ui/core/CssBaseline';
+import { ThemeProvider } from '@material-ui/core/styles';
+import Head from 'next/head';
+import React, { ElementType } from 'react';
 import theme from '../utils/theme';
-import { createClient, Provider } from 'urql';
 
 type MyAppProps = {
   Component: ElementType,
   pageProps: Object
 }
-
-const client = createClient({ 
-  url: "http://localhost:4000/graphql",
-  fetchOptions: {
-    credentials: "include"
-  } 
-});
 
 export default function MyApp(props: MyAppProps) {
   const { Component, pageProps } = props;
@@ -34,13 +26,11 @@ export default function MyApp(props: MyAppProps) {
         <title>My page</title>
         <meta name="viewport" content="minimum-scale=1, initial-scale=1, width=device-width" />
       </Head>
-      <Provider value={client}>
         <ThemeProvider theme={theme}>
           {/* CssBaseline kickstart an elegant, consistent, and simple baseline to build upon. */}
           <CssBaseline />
-          <Component {...pageProps} />
+          <Component {...pageProps} /> 
         </ThemeProvider>
-      </Provider>
     </React.Fragment>
   );
 }

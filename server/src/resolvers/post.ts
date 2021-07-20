@@ -1,63 +1,240 @@
 import { Post } from '../entities/Post';
-import { Ctx, Query, Resolver, Arg, Int, Mutation } from "type-graphql";
+import {  Query, Resolver, Arg,  Mutation, InputType, Field, Ctx, UseMiddleware, Int, FieldResolver, Root, ObjectType, Info } from "type-graphql";
 import { MyContext } from 'src/types';
+import { isAuth } from '../middleware/isAuth';
+import { getConnection } from 'typeorm';
+import { Updoot } from '../entities/Updoot';
+import { User } from '../entities/User';
 
-@Resolver()
+// const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+@InputType()
+class PostInput {
+    @Field()
+    title: string
+    @Field()
+    text: string
+}
+
+@ObjectType()
+class PaginatedPosts {
+    @Field(() => [Post])
+    posts: Post[]
+
+    @Field()
+    hasMore: boolean;
+}
+
+@Resolver(Post)
 export class PostResolver {
-    @Query(() => [Post])
-    posts( @Ctx() { em }: MyContext ): Promise<Post[]> { // { em } -- i used destructuring, can use ctx instead
-        return em.find(Post, {});
+    @FieldResolver(() => String)
+    textSnippet(
+        @Root() root: Post
+    ) {
+        return root.text.slice(0, 50); 
+    }
+
+    @FieldResolver(() => User)
+    creator(
+        @Root() post: Post,
+        @Ctx() { userLoader }: MyContext
+    ) {
+        return userLoader.load(post.creatorId);
+    }
+
+    @FieldResolver(() => Int, { nullable: true })
+    async voteStatus(
+        @Root() post: Post,
+        @Ctx() { updootLoader, req }: MyContext
+    ) {
+        if(!req.session.userId) {
+            return null;
+        }
+
+        const updoot = await updootLoader.load({ postId: post.id, userId: req.session.userId });
+
+        return updoot ? updoot.value : null;    
+    }
+
+    @Mutation(() => Boolean)
+    @UseMiddleware(isAuth)
+    async vote(
+        @Arg('postId', () => Int) postId: number,
+        @Arg('value', () => Int) value: number,
+        @Ctx() { req }: MyContext
+    ) {
+        const isUpdoot = value !== -1;
+        const realValue = isUpdoot ? 1 : -1; 
+        const { userId } = req.session;
+        
+        const updoot = await Updoot.findOne({ where: {postId, userId} });
+        // the user has voted on the post before
+        // and they are chaning their vote
+        if(updoot && updoot.value !== realValue) {
+            await getConnection().transaction(async (tm) => {
+                await tm.query(`
+                    update updoot
+                    set value = $1
+                    where "postId" = $2 and "userId" = $3
+                `, [realValue, postId, userId]);
+                
+                await tm.query(`
+                    update post
+                    set points = points + $1
+                    where id = $2;
+                `, [2 * realValue, postId]);  // -1 -> 1
+            });
+
+        } else if(!updoot) {
+            // has never voted before
+            await getConnection().transaction(async tm => {
+                await tm.query(`
+                insert into updoot("userId","postId", value)
+                values ($1, $2, $3);
+                `, [userId, postId, realValue]);
+                
+                await tm.query(`
+                    update post
+                    set points = points + $1
+                    where id = $2;
+                `, [realValue, postId]);
+            })
+
+        }
+        // await Updoot.insert({
+        //     userId,
+        //     postId,
+        //     value: realValue,
+        // });
+
+        //     id: postId
+        // }, {
+ 
+        // });
+
+        return true;
+    }
+
+    @Query(() => PaginatedPosts)
+    async posts(
+        @Arg('limit', () => Int) limit: number,
+        @Arg('cursor', () => String, { nullable: true }) cursor: string | null,
+        @Info() info: any,
+        @Ctx() {req}: MyContext
+    ): Promise<PaginatedPosts> { 
+        const realLimit = Math.min(50, limit);
+        const realLimitPlusOne = realLimit + 1;
+
+        const replacements: any = [realLimitPlusOne ];
+
+        if(cursor) {
+            replacements.push(new Date(parseInt(cursor)));
+        }
+        
+        // -------------------------------------------------
+        // json_build_object(
+        //     'id', u.id,
+        //     'username', u.username,
+        //     'email', u.email,
+        //     'createdAt', u."createdAt",
+        //     'updatedAt', u."updatedAt"
+        // ) creator,
+        // inner join public.user u on u.id = p."creatorId"
+        // -------------------------------------------------
+        // ${req.session.userId 
+        //     ? '(select value from updoot where "userId" = $2 and "postId" = p.id ) "voteStatus"'
+        //     : 'null as "voteStatus"'
+        // }
+        const posts = await getConnection().query(`
+            select p.*
+            from post p 
+            ${cursor ? `where p."createdAt" < $2` : ''}
+            order by p."createdAt" DESC
+            limit $1
+
+        `, replacements);
+
+        // console.log("posts:", posts);
+        // const qb = getConnection()
+        //     .getRepository(Post)
+        //     .createQueryBuilder("p")
+        //     .innerJoinAndSelect("p.creator", "u", 'u.id = p."creatorId"')
+        //     .orderBy('p."createdAt"', "DESC")           // add quotations for psql
+        //     .take(realLimitPlusOne);
+
+        // if(cursor) {
+        //     qb.where('p."createdAt" < :cursor', { cursor: new Date(parseInt(cursor)) });
+        // }
+
+        // const posts = await qb.getMany();
+
+        return { 
+            posts: posts.slice(0, realLimit), 
+            hasMore: posts.length === realLimitPlusOne
+        }; 
     }
 
     @Query(() => Post, {nullable: true})
     post( 
-        @Arg('id', () => Int) id: number,
-        @Ctx() { em }: MyContext 
-        ): Promise<Post | null> {                         // { em } -- i used destructuring, can use ctx instead
-        return em.findOne(Post, { id });
+        @Arg('id', () => Int) id: number
+        ): Promise<Post | undefined> {                         // { em } -- i used destructuring, can use ctx instead
+        return Post.findOne(id);
     }
 
     // dont forget to specify mutation {  } within playground 
     @Mutation(() => Post)
+    @UseMiddleware(isAuth)
     async createPost( 
-        @Arg('title') title: string,
-        @Ctx() { em }: MyContext
+        @Arg("input") input: PostInput,
+        @Ctx() { req }: MyContext
         ): Promise<Post> {                         // { em } -- i used destructuring, can use ctx instead
-            const post = em.create(Post, { title });
-            await em.persistAndFlush(post);
-        
-            return post;
+            return Post.create({
+                ...input,
+                creatorId: req.session.userId
+            }).save();
     }
 
     // dont forget to specify mutation {  } within playground 
     @Mutation(() => Post, { nullable: true })
+    @UseMiddleware(isAuth)
     async updatePost(
-        @Arg('id') id: number,
-        @Arg('title', () => String, { nullable: true }) title: string,
-        @Ctx() { em }: MyContext 
+        @Arg('id', () => Int) id: number,
+        @Arg('title') title: string,
+        @Arg('text') text: string,
+        @Ctx() { req }: MyContext,
         ): Promise<Post | null> {                         // { em } -- i used destructuring, can use ctx instead
-            const post = await em.findOne(Post, { id });
-            if(!post) {
-                return null;
-            }
-            if(typeof title !== 'undefined') {
-                post.title = title;
-                await em.persistAndFlush(post);
-            }
-            return post;
+            const result = await getConnection()
+                .createQueryBuilder()
+                .update(Post)
+                .set({ title, text })
+                .where('id = :id and "creatorId" = :creatorId',{ id, creatorId: req.session.userId })
+                .returning("* ")
+                .execute();
+            
+            console.log(result);
+            
+            return result.raw[0];
     }
 
      // dont forget to specify mutation {  } within playground 
      @Mutation(() => Boolean)
+     @UseMiddleware(isAuth)
      async deletePost(
-         @Arg('id') id: number,
-         @Ctx() { em }: MyContext 
-         ): Promise<boolean> {                         // { em } -- i used destructuring, can use ctx instead
-            try {
-                await em.nativeDelete(Post, { id });
-            } catch (error) {
-                return false;
-            }
+         @Arg('id', () => Int) id: number,
+         @Ctx() { req }: MyContext
+         ): Promise<boolean> {
+            //  ------      first method      -------
+            // const post = await Post.findOne(id);  
+
+            // if(!post) return false;
+            // if(post.creatorId !== req.session.userId) throw new Error("not authorized");
+
+            // await Updoot.delete({ postId: id }); 
+            // await Post.delete({ id }); 
+            // return true;
+
+            // -------      cascading       -------
+            await Post.delete({ id, creatorId: req.session.userId }); 
             return true;
      }
 }
