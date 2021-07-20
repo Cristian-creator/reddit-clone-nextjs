@@ -12,11 +12,3 @@ export type MyContext = {
     userLoader: ReturnType<typeof createUserLoader>,
     updootLoader: ReturnType<typeof createUpdootLoader>,
 }
-
-// export interface DatabaseConfig = {
-//     type: ,
-//     database: process.env.DB_NAME,
-//     username: process.env.DB_USERNAME,
-//     password: process.env.DB_PASS, 
-    
-// }

@@ -6,7 +6,7 @@ import { User } from "./User";
 @ObjectType()
 @Entity()
 export class Post extends BaseEntity { // BaseEntity provides methods to work with the entity
-    @Field(() => Int)        // if commented, field will no longer be available to the client  
+    @Field(() => Int)                  // if commented, field will no longer be available to the client  
     @PrimaryGeneratedColumn()
     id!: number;
 

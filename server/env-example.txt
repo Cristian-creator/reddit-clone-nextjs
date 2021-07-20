@@ -1,0 +1,5 @@
+DB_TYPE=postgres
+DB_NAME=mydb
+DB_USERNAME=name_of_my_db_acc
+DB_PASS=pass_of_my_db_acc
+SESSION_SECRET=secret_session_code

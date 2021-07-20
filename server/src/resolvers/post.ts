@@ -177,24 +177,22 @@ export class PostResolver {
     @Query(() => Post, {nullable: true})
     post( 
         @Arg('id', () => Int) id: number
-        ): Promise<Post | undefined> {                         // { em } -- i used destructuring, can use ctx instead
+        ): Promise<Post | undefined> {                         
         return Post.findOne(id);
     }
 
-    // dont forget to specify mutation {  } within playground 
     @Mutation(() => Post)
     @UseMiddleware(isAuth)
     async createPost( 
         @Arg("input") input: PostInput,
         @Ctx() { req }: MyContext
-        ): Promise<Post> {                         // { em } -- i used destructuring, can use ctx instead
+        ): Promise<Post> {                         
             return Post.create({
                 ...input,
                 creatorId: req.session.userId
             }).save();
     }
 
-    // dont forget to specify mutation {  } within playground 
     @Mutation(() => Post, { nullable: true })
     @UseMiddleware(isAuth)
     async updatePost(
@@ -202,7 +200,7 @@ export class PostResolver {
         @Arg('title') title: string,
         @Arg('text') text: string,
         @Ctx() { req }: MyContext,
-        ): Promise<Post | null> {                         // { em } -- i used destructuring, can use ctx instead
+        ): Promise<Post | null> {                         
             const result = await getConnection()
                 .createQueryBuilder()
                 .update(Post)
@@ -216,7 +214,6 @@ export class PostResolver {
             return result.raw[0];
     }
 
-     // dont forget to specify mutation {  } within playground 
      @Mutation(() => Boolean)
      @UseMiddleware(isAuth)
      async deletePost(

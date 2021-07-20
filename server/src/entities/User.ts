@@ -7,7 +7,7 @@ import { Updoot } from "./Updoot";
 @ObjectType()
 @Entity()
 export class User extends BaseEntity {
-    @Field(() => Int)              // if commented, field will no longer be available to the client  
+    @Field(() => Int)                  // if commented, field will no longer be available to the client  
     @PrimaryGeneratedColumn()
     id!: number;
     

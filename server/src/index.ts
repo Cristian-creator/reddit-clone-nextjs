@@ -34,7 +34,6 @@ const main = async () => {
         password: process.env.DB_PASS, 
         logging: true,
         synchronize: true,      // create tables automatically without run migration
-        // migrations: [__dirname, "./migrations/*"],
         migrations: [path.join(__dirname, "./migrations/*")],
         entities: [Post, User, Updoot]
     });
@@ -71,7 +70,7 @@ const main = async () => {
                 secure: __prod__                      // cookie only works in https
             }, 
             saveUninitialized: false,
-            secret: process.env.SESSION_SECRET as string,                // MOVE TO ENV
+            secret: process.env.SESSION_SECRET as string,                
             resave: false,
         })
     );
@@ -97,7 +96,4 @@ const main = async () => {
 
 main().catch((err) => {
     console.log(err);
-})
-
-// MikroORM is for how we are going to interact with the database, create tables
-//, select data, basically all database needs 
+});
