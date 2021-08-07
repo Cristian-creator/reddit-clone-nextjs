@@ -201,7 +201,7 @@ export class UserResolver {
         @Ctx() { req }: MyContext
     ): Promise<UserResponse> {
         // -------------------------------------------------
-        // Within graphql playground -> Settings - dont forget 
+        // Within graphql playgxround -> Settings - dont forget 
         // to set request.credentials to "include" in order to make cookies work
         // -------------- -----------------------------------
         

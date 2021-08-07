@@ -3,13 +3,13 @@ import { cacheExchange, Resolver, Cache } from '@urql/exchange-graphcache'
 import { DeletePostMutationVariables, LoginMutation, LogoutMutation, MeDocument, MeQuery, RegisterMutation, VoteMutationVariables } from '../generated/graphql';
 import { betterUpdateQuery } from './betterUpdateQuery';
       
-// exchange for all errors instead of checking for every submit different error messages
 import { pipe, tap } from 'wonka';
 import { Exchange } from 'urql';
 import router from 'next/router';
 import { gql } from 'graphql-tag';
 import { isServer } from './isServer';
 
+// exchange for all errors instead of checking for every submit different error messages
 export const errorExchange: Exchange = ({ forward }) => ops$ => {
   return pipe(
     forward(ops$),
@@ -17,16 +17,13 @@ export const errorExchange: Exchange = ({ forward }) => ops$ => {
       // If the OperationResult has an error send a request to sentry
       if (error) {
         // the error is a CombinedError with networkError and graphqlErrors properties
-        if(error?.message.includes("not aut henticated")) {
+        if(error?.message.includes("not authenticated")) {
           router.replace("/login"); 
       }
       }
     })
   );
 };
-
-// import { stringifyVariables } from '@urql/core';
-// import { Resolver, Variables, NullArray } from '../types';
 
 export type MergeMode = 'before' | 'after';
  
@@ -103,7 +100,8 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
       : undefined
 
   },
-  exchanges: [dedupExchange, cacheExchange({
+  exchanges: [dedupExchange,  // deduplicates pending operations (pending = waiting for a result)
+    cacheExchange({           // the default caching logic with document caching
     keys: {
         PaginatedPosts: () => null,
     },
@@ -201,7 +199,7 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
       }
     },
   }),
-  errorExchange,
-  ssrExchange, 
-  fetchExchange]
+  errorExchange,     // allows a global callback to be called when any error occurs
+  ssrExchange,       // allows for a server-side renderer to collect results for client-side rehydration
+  fetchExchange]     // sends an operation to the API using fetch and adds results to the output stream
 })};

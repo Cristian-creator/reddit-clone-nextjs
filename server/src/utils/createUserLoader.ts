@@ -5,7 +5,8 @@ import { User } from '../entities/User';
 // users: [{ id: 1, username: "bob" }, { id: 2, username: "tom" }, ...]
 // userIdToUser: {}
 // users.map -> userIdToUser[1] = { id: 1, username: "bob" }
-// users.map -> userIdToUser[2] = { id: 2, username: "tom" }
+// users.map -> userIdToUser[4] = { id: 4, username: "john" }
+// sortedUsers = userIds.map((id: 1) =>  userIdToUser[id: 1])
 // return [1, 2, 3, 4, 5].map -> [{ id: 1, username: "bob" }, { id: 2, username: "tom" }, ...]
 
 export const createUserLoader = () => new DataLoader<number, User>(async userIds => {

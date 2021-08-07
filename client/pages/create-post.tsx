@@ -1,9 +1,8 @@
-import { Box, Link, Button } from '@material-ui/core';
+import { Box, Button } from '@material-ui/core';
 import { Formik, Form } from 'formik';
-import React, {useEffect} from 'react';
+import React from 'react';
 import { InputField } from '../components/InputField';
-import { Wrapper } from "../components/Wrapper"
-import { useCreatePostMutation, useMeQuery } from '../generated/graphql';
+import { useCreatePostMutation } from '../generated/graphql';
 import { useRouter } from "next/router";
 import { withUrqlClient } from 'next-urql';
 import { createUrqlClient } from '../utils/createUrqlClient';

@@ -24,7 +24,7 @@ export const Login: React.FC<{}> =({}) => {
                 
                 if(response.data?.login.errors) {
                   // [{field: 'username', message: 'error'}]
-                  // toErrorMap turns an array into objectnb
+                  // toErrorMap turns an array into object
                     setErrors(toErrorMap(response.data.login.errors));
                 }  else if (response.data?.login.user) {
                     if(typeof router.query.next === 'string') {
